@@ -19,8 +19,26 @@ from .config import Config
 log = logging.getLogger(__name__)
 
 
+def _preload_linux_deps(maa_dir: Path) -> None:
+    """Linux 上进程启动后再改 LD_LIBRARY_PATH 无效；把 maa/ 里补放的系统库（如 libatomic.so.1）
+    先以 RTLD_GLOBAL 载入，MaaCore 就能找到它们。"""
+    import ctypes
+    import platform
+
+    if platform.system() != "Linux":
+        return
+    for name in ("libatomic.so.1",):
+        f = maa_dir / name
+        if f.exists():
+            ctypes.CDLL(str(f), mode=ctypes.RTLD_GLOBAL)
+
+
 def _import_asst(cfg: Config):
-    binding = cfg.maa_source_dir / "src" / "Python"
+    _preload_linux_deps(cfg.maa_dir)
+    # 优先用发布包自带的绑定（与内核版本严格一致），否则退回源码仓库
+    binding = cfg.maa_dir / "Python"
+    if not (binding / "asst" / "asst.py").exists():
+        binding = cfg.maa_source_dir / "src" / "Python"
     if not (binding / "asst" / "asst.py").exists():
         raise FileNotFoundError(f"找不到 MAA Python 绑定：{binding}。请确认 maa_source_dir 配置正确")
     if str(binding) not in sys.path:
@@ -41,8 +59,9 @@ class MaaRunner:
     def __init__(self, cfg: Config, incremental_resource: Path | None = None):
         self.cfg = cfg
         Asst, self._Opt, self._Msg = _import_asst(cfg)
-        if not Asst.load(path=cfg.maa_dir, incremental_path=incremental_resource,
-                         user_dir=cfg.db_path.parent / "maa_user"):
+        user_dir = cfg.db_path.parent / "maa_user"
+        user_dir.mkdir(parents=True, exist_ok=True)  # MAA 的 SetUserDir 要求目录已存在
+        if not Asst.load(path=cfg.maa_dir, incremental_path=incremental_resource, user_dir=user_dir):
             raise RuntimeError(f"MAA 资源加载失败：{cfg.maa_dir}")
         self._events: "queue.Queue[tuple[str, dict]]" = queue.Queue()
 
@@ -58,7 +77,23 @@ class MaaRunner:
         self.asst = Asst(callback=_cb)
         self.asst.set_instance_option(self._Opt.touch_type, cfg.touch_type)
 
+    def _adb_precheck(self) -> None:
+        """MAA 的 connect 在设备不存在时会阻塞很久；先用 adb 快速确认设备在线，失败立刻给出提示。"""
+        import subprocess
+
+        adb, addr = self.cfg.adb_path, self.cfg.adb_address
+        try:
+            subprocess.run([adb, "connect", addr], capture_output=True, text=True, timeout=15)
+            out = subprocess.run([adb, "devices"], capture_output=True, text=True, timeout=10).stdout
+        except (OSError, subprocess.TimeoutExpired) as e:
+            raise RuntimeError(f"adb 不可用（{adb}）：{e}") from e
+        if not any(line.startswith(addr) and line.rstrip().endswith("device") for line in out.splitlines()):
+            raise RuntimeError(
+                f"adb 找不到在线设备 {addr}。请确认模拟器已启动、adb 端口正确"
+                f"（远程测试时确认 SSH 反向隧道已建立）。adb devices 输出：\n{out.strip()}")
+
     def __enter__(self):
+        self._adb_precheck()
         if not self.asst.connect(self.cfg.adb_path, self.cfg.adb_address):
             raise RuntimeError(f"连接模拟器失败：{self.cfg.adb_address}")
         return self

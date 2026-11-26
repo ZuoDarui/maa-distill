@@ -79,7 +79,26 @@ def update_runtime(cfg: Config, force: bool = False) -> str:
             shutil.rmtree(cfg.maa_dir)
         shutil.move(str(root), str(cfg.maa_dir))
     (cfg.maa_dir / ".maa_version").write_text(tag)
+    _ensure_linux_libatomic(cfg)
     return tag
+
+
+def _ensure_linux_libatomic(cfg: Config) -> None:
+    """MaaCore(Linux) 依赖 libatomic.so.1，部分精简系统没有；无 root 时从 apt 下载 deb 解出放进 maa/。"""
+    import ctypes.util
+
+    if platform.system() != "Linux" or ctypes.util.find_library("atomic"):
+        return
+    with tempfile.TemporaryDirectory() as tmp:
+        try:
+            subprocess.run(["apt-get", "download", "libatomic1"], cwd=tmp, check=True, capture_output=True)
+            deb = next(Path(tmp).glob("libatomic1_*.deb"))
+            subprocess.run(["dpkg-deb", "-x", str(deb), "x"], cwd=tmp, check=True)
+            for f in Path(tmp, "x").rglob("libatomic.so.1*"):
+                shutil.copy2(f, cfg.maa_dir / f.name, follow_symlinks=True)
+            log.info("已补充 libatomic.so.1 到 %s", cfg.maa_dir)
+        except (OSError, subprocess.CalledProcessError, StopIteration) as e:
+            log.warning("缺少 libatomic.so.1，请手动安装（sudo apt install libatomic1）：%s", e)
 
 
 def update_source(cfg: Config) -> str:

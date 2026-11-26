@@ -82,6 +82,18 @@ maa_distill/
 tests/          离线单元测试：python -m unittest discover tests
 ```
 
+## 远程测试（模拟器在你的 Mac 上，程序在另一台 Linux 机器上）
+
+两台机器在同一 Tailscale 网络时，在 Mac 上开一条 SSH 反向隧道，把模拟器的 adb 端口转发过去：
+
+```bash
+# Mac 上（MuMu Pro 默认 adb 端口 16384）
+ssh -N -R 16384:127.0.0.1:16384 <user>@<linux 机器的 tailscale ip>
+```
+
+Linux 机器的 `config.json` 里 `adb_address` 填 `127.0.0.1:16384`。注意跨地域延迟会影响按时间轴执行的作业，
+远程方式适合调试流程；正式刷关建议直接在 Mac 上运行本项目。
+
 ## 跟上游保持同步
 
 - MAA 本体：`python -m maa_distill update-maa`
