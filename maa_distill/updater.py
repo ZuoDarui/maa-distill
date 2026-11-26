@@ -77,13 +77,16 @@ def _download(cfg: Config, urls: list[str], dest: Path) -> str:
                     f.write(chunk)
                     done += len(chunk)
                     now = time.monotonic()
-                    if now - last > 1 or (total and done == total):
+                    if total < (1 << 20):
+                        continue  # 小文件（如 Python 绑定）不显示进度
+                    if now - last > 1 or done == total:
                         last = now
                         speed = done / max(now - t0, 1e-6) / 1024
                         pct = f"{done * 100 / total:5.1f}%" if total else "   ?  "
                         sys.stderr.write(f"\r  {pct}  {done / 1e6:7.1f}/{total / 1e6:.1f} MB  {speed:7.0f} KB/s")
                         sys.stderr.flush()
-                sys.stderr.write("\n")
+                if total >= (1 << 20):
+                    sys.stderr.write("\n")
             if total and done != total:
                 raise RuntimeError(f"下载不完整 {done}/{total}")
             return url
