@@ -94,6 +94,26 @@ def _plans(cfg, conn, stage, args=None):
                                         max_opers=getattr(args, "max_opers", None))
 
 
+def _plans_autofetch(cfg, conn, stage, args, limit: int = 50):
+    """最佳方案需要替补、而该关还有未拉详情的作业时，自动补拉详情后重新排序。
+
+    实机发现（TL-8）：默认每关只拉前 5 份详情，5 份都要用低星先锋替活动 6 星，
+    其余 18 份里可能有无需替补的方案。"""
+    sid, plans = _plans(cfg, conn, stage, args)
+    if getattr(args, "no_fetch", False) or (plans and not plans[0].substitutions):
+        return sid, plans
+    _, aliases = gamedata.stage_aliases(conn, stage)
+    q = ",".join("?" * len(aliases))
+    missing = [r["id"] for r in conn.execute(
+        f"SELECT id FROM copilots WHERE has_actions=0 AND stage_name IN ({q}) "
+        f"ORDER BY likes - dislikes DESC LIMIT ?", (*aliases, limit))]
+    if not missing:
+        return sid, plans
+    print(f"最佳方案需要替补，自动补拉本关其余 {len(missing)} 份作业详情（约 {len(missing) * cfg.request_interval:.0f} 秒）…")
+    crawler.fetch_details(conn, crawler.CopilotSiteClient(cfg), missing)
+    return _plans(cfg, conn, stage, args)
+
+
 def _write_plan(cfg, stage, p) -> Path:
     cfg.output_dir.mkdir(parents=True, exist_ok=True)
     f = cfg.output_dir / f"{stage}_{p.copilot_id}_{p.plan_hash}.json"
@@ -103,7 +123,7 @@ def _write_plan(cfg, stage, p) -> Path:
 
 def cmd_plan(args):
     cfg, conn = _ctx(args)
-    sid, plans = _plans(cfg, conn, args.stage, args)
+    sid, plans = _plans_autofetch(cfg, conn, args.stage, args)
     if not plans:
         print("没有可行方案。可尝试：crawl --stage 拉更多作业详情 / 检查 box / 等待作业站出新作业")
         return
@@ -120,7 +140,7 @@ def cmd_run(args):
     successes = 0
     with MaaRunner(cfg) as r:
         for attempt in range(args.max_attempts):
-            sid, plans = _plans(cfg, conn, args.stage, args)  # 每次重新排序：上次失败的会掉下去
+            sid, plans = _plans_autofetch(cfg, conn, args.stage, args)  # 每次重新排序：上次失败的会掉下去
             if not plans:
                 print("没有可行方案")
                 return
@@ -266,6 +286,7 @@ def main(argv=None):
 
     p = sp.add_parser("plan", help="生成适配 box 的方案")
     p.add_argument("stage")
+    p.add_argument("--no-fetch", action="store_true", help="不自动补拉作业详情")
     p.add_argument("--min-risk", type=int, help="危机合约：只要风险等级 ≥ N 的作业")
     p.add_argument("--max-opers", type=int, help="只要编队人数 ≤ N 的作业（如危机合约少人挑战）")
     p.add_argument("--top", type=int, default=5)
@@ -273,6 +294,7 @@ def main(argv=None):
 
     p = sp.add_parser("run", help="用 MAA 实跑，失败自动换方案")
     p.add_argument("stage")
+    p.add_argument("--no-fetch", action="store_true", help="不自动补拉作业详情")
     p.add_argument("--min-risk", type=int, help="危机合约：只要风险等级 ≥ N 的作业")
     p.add_argument("--max-opers", type=int, help="只要编队人数 ≤ N 的作业（如危机合约少人挑战）")
     p.add_argument("--kind", default="Copilot", choices=["Copilot", "SSSCopilot", "ParadoxCopilot"])
