@@ -38,6 +38,9 @@ python -m maa_distill run <保全关卡> --kind SSSCopilot
 # 用 MAA 图形界面跑完，可以手动记录结果
 python -m maa_distill record data/plans/xxx.json win
 
+# 危机合约：只要风险 ≥10 级、≤5 人的作业
+python -m maa_distill plan level_rune_14-02 --min-risk 10 --max-opers 5
+
 # 肉鸽：查看你的 box 对某主题策略的覆盖度
 python -m maa_distill roguelike JieGarden
 ```
@@ -66,6 +69,7 @@ maa_distill/
   feedback.py   实跑记录
   runner.py     调用 MAA Python 绑定执行任务
   updater.py    跟随 MAA 官方更新
+  contract.py   危机合约风险等级/人数解析与筛选
   roguelike.py  肉鸽策略覆盖度分析
 tests/          离线单元测试：python -m unittest discover tests
 ```

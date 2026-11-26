@@ -82,13 +82,15 @@ def cmd_stats(args):
     print("常用部署：", ", ".join(f"{n}@{tuple(l)}" for (n, l), _ in s["top_deploys"]))
 
 
-def _plans(cfg, conn, stage):
+def _plans(cfg, conn, stage, args=None):
     sid, aliases = gamedata.stage_aliases(conn, stage)
     b = boxmod.load(conn)
     if not b:
         sys.exit("box 为空，请先运行 `box --file` 或 `box --scan`")
     info = gamedata.load_opers(str(gamedata.find_battle_data(cfg.maa_dir, cfg.maa_source_dir)))
-    return sid, planner.plans_for_stage(conn, aliases, b, info, cfg.prior_strength)
+    return sid, planner.plans_for_stage(conn, aliases, b, info, cfg.prior_strength,
+                                        min_risk=getattr(args, "min_risk", None),
+                                        max_opers=getattr(args, "max_opers", None))
 
 
 def _write_plan(cfg, stage, p) -> Path:
@@ -100,7 +102,7 @@ def _write_plan(cfg, stage, p) -> Path:
 
 def cmd_plan(args):
     cfg, conn = _ctx(args)
-    sid, plans = _plans(cfg, conn, args.stage)
+    sid, plans = _plans(cfg, conn, args.stage, args)
     if not plans:
         print("没有可行方案。可尝试：crawl --stage 拉更多作业详情 / 检查 box / 等待作业站出新作业")
         return
@@ -117,7 +119,7 @@ def cmd_run(args):
     successes = 0
     with MaaRunner(cfg) as r:
         for attempt in range(args.max_attempts):
-            sid, plans = _plans(cfg, conn, args.stage)  # 每次重新排序：上次失败的会掉下去
+            sid, plans = _plans(cfg, conn, args.stage, args)  # 每次重新排序：上次失败的会掉下去
             if not plans:
                 print("没有可行方案")
                 return
@@ -183,11 +185,15 @@ def main(argv=None):
 
     p = sp.add_parser("plan", help="生成适配 box 的方案")
     p.add_argument("stage")
+    p.add_argument("--min-risk", type=int, help="危机合约：只要风险等级 ≥ N 的作业")
+    p.add_argument("--max-opers", type=int, help="只要编队人数 ≤ N 的作业（如危机合约少人挑战）")
     p.add_argument("--top", type=int, default=5)
     p.set_defaults(func=cmd_plan)
 
     p = sp.add_parser("run", help="用 MAA 实跑，失败自动换方案")
     p.add_argument("stage")
+    p.add_argument("--min-risk", type=int, help="危机合约：只要风险等级 ≥ N 的作业")
+    p.add_argument("--max-opers", type=int, help="只要编队人数 ≤ N 的作业（如危机合约少人挑战）")
     p.add_argument("--kind", default="Copilot", choices=["Copilot", "SSSCopilot", "ParadoxCopilot"])
     p.add_argument("--until-success", type=int, default=1)
     p.add_argument("--max-attempts", type=int, default=5)

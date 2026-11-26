@@ -191,7 +191,10 @@ def build_content(copilot: Copilot, slots: list[SlotResolution], box: Box) -> di
 
 
 def plans_for_stage(conn: sqlite3.Connection, aliases: set[str], box: Box, info: dict[str, OperInfo],
-                    prior_strength: float = 4.0, include_infeasible: bool = False) -> list[Plan]:
+                    prior_strength: float = 4.0, include_infeasible: bool = False,
+                    min_risk: int | None = None, max_opers: int | None = None) -> list[Plan]:
+    from .contract import accept
+
     q = ",".join("?" * len(aliases))
     rows = conn.execute(
         f"SELECT * FROM copilots WHERE has_actions=1 AND stage_name IN ({q})", tuple(aliases)
@@ -202,6 +205,8 @@ def plans_for_stage(conn: sqlite3.Connection, aliases: set[str], box: Box, info:
             cp = Copilot.from_json(r["content"])
         except (json.JSONDecodeError, KeyError):
             continue
+        if not accept(cp, min_risk, max_opers):
+            continue  # 危机合约：风险等级/人数不满足筛选条件
         prior = site_prior(r["likes"], r["dislikes"], r["views"])
         for slots, feasible in resolve(cp, box, info):
             if not feasible and not include_infeasible:
