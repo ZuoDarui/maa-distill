@@ -127,10 +127,16 @@ def cmd_run(args):
             p = plans[0]
             f = _write_plan(cfg, args.stage, p)
             print(f"[{attempt + 1}] 执行 {f.name}（分数 {p.score:.3f}）")
-            ok, detail = r.run_copilot(f, kind=args.kind)
-            feedback.record_run(conn, p.plan_hash, sid or args.stage, ok, p.copilot_id, detail)
-            print("   成功" if ok else f"   失败 {detail}")
-            successes += ok
+            res = r.run_copilot(f, kind=args.kind)
+            if not res.started:
+                # 没开打的失败不是作业的错，不记录，也不换下一个方案（换了也一样失败）
+                print(f"   未进入战斗，本次不计入胜负：{res.hint}")
+                if args.verbose:
+                    print("  ", res.detail)
+                return
+            feedback.record_run(conn, p.plan_hash, sid or args.stage, res.ok, p.copilot_id, res.detail)
+            print("   成功" if res.ok else f"   作战失败（已记录，下次会降低该方案排名）{res.detail}")
+            successes += res.ok
             if successes >= args.until_success:
                 break
 
@@ -178,6 +184,18 @@ def cmd_daily(args):
                 continue
             ok, _ = r.run_task(t["type"], t.get("params", {}))
             print(f"{t['type']:<16} {'完成' if ok else '失败'}")
+
+
+def cmd_undo_run(args):
+    """删除最近一条实跑记录（比如误记的失败）。"""
+    cfg, conn = _ctx(args)
+    row = conn.execute("SELECT * FROM runs ORDER BY run_id DESC LIMIT 1").fetchone()
+    if not row:
+        print("没有实跑记录")
+        return
+    conn.execute("DELETE FROM runs WHERE run_id=?", (row["run_id"],))
+    conn.commit()
+    print(f"已删除：{row['stage_name']} 作业 {row['copilot_id']} {'胜' if row['success'] else '负'}（{row['ran_at']}）")
 
 
 def cmd_roguelike(args):
@@ -261,6 +279,9 @@ def main(argv=None):
     p.add_argument("--until-success", type=int, default=1)
     p.add_argument("--max-attempts", type=int, default=5)
     p.set_defaults(func=cmd_run)
+
+    p = sp.add_parser("undo-run", help="删除最近一条实跑记录")
+    p.set_defaults(func=cmd_undo_run)
 
     p = sp.add_parser("record", help="手动记录一次结果")
     p.add_argument("file")

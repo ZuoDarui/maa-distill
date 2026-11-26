@@ -48,6 +48,37 @@ def _import_asst(cfg: Config):
     return Asst, InstanceOptionType, Message
 
 
+# 战斗开始前的子任务：失败在这里说明没开打（不在编队界面、编队失败等），不能算作业的胜负
+PRE_BATTLE_TASKS = ("BattleStartPre", "BattleStartAll", "BattleStartNormal", "BattleStartRaid",
+                    "BattleQuickFormation", "BattleFormation", "StartButton1", "StartButton2")
+
+
+class CopilotResult:
+    """一次抄作业的结果。
+
+    started：是否真正进入了战斗。依据（已核对 MaaCore 源码 Task/Miscellaneous/BattleProcessTask.cpp）：
+    战斗中每执行一个作业动作都会回调 SubTaskExtraInfo{what: "CopilotAction"}。
+    """
+
+    def __init__(self, ok: bool, started: bool, detail: str, hint: str = ""):
+        self.ok, self.started, self.detail, self.hint = ok, started, detail, hint
+
+    @classmethod
+    def from_events(cls, ok: bool, events: list[tuple[str, dict]]) -> "CopilotResult":
+        started = any(n == "SubTaskExtraInfo" and d.get("what") == "CopilotAction" for n, d in events)
+        errors = [d for n, d in events if n in ("TaskChainError", "SubTaskError")]
+        firsts = {f for d in errors for f in (d.get("first") or [])}
+        hint = ""
+        if not started:
+            if firsts & set(PRE_BATTLE_TASKS):
+                hint = "没找到「开始行动」按钮：请先进入该关卡的编队界面（右下角有「开始行动」）再运行"
+            elif any(n == "SubTaskExtraInfo" and d.get("what") == "UnsupportedLevel" for n, d in events):
+                hint = "MAA 暂不支持这个关卡（资源未更新？可先运行 update-maa）"
+            else:
+                hint = "战斗未开始，详见 detail"
+        return cls(ok and started, started, json.dumps(errors[-3:], ensure_ascii=False), hint)
+
+
 class MaaRunner:
     """一个 MAA 实例。用法：
 
@@ -135,11 +166,10 @@ class MaaRunner:
         """执行任意 MAA 任务（Roguelike / Fight / Infrast ...），即 MAA 的全部功能。"""
         return self._run(task, params, timeout)
 
-    def run_copilot(self, plan_file: Path, formation: bool = True, kind: str = "Copilot") -> tuple[bool, str]:
+    def run_copilot(self, plan_file: Path, formation: bool = True, kind: str = "Copilot") -> CopilotResult:
         """执行一份作业。kind 可为 Copilot（普通/活动/危机合约）、SSSCopilot（保全派驻）、ParadoxCopilot（悖论模拟）。"""
         params = {"filename": str(Path(plan_file).resolve())}
         if kind == "Copilot":
             params.update({"formation": formation, "use_sanity_potion": False})
         ok, events = self._run(kind, params)
-        errors = [d for n, d in events if n in ("TaskChainError", "SubTaskError")]
-        return ok, json.dumps(errors[-3:], ensure_ascii=False)
+        return CopilotResult.from_events(ok, events)
