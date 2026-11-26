@@ -85,7 +85,7 @@ tests/          离线单元测试：python -m unittest discover tests
 ## 在 Mac + BlueStacks 上运行（推荐）
 
 ```bash
-brew install android-platform-tools        # 提供 adb
+curl -L -o pt.zip https://dl.google.com/android/repository/platform-tools-latest-darwin.zip && unzip -q pt.zip   # 提供 adb
 git clone git@github.com:ZuoDarui/maa-distill.git && cd maa-distill
 cp config.example.json config.json         # adb_path 填 "adb"，adb_address 填 BlueStacks 显示的 "127.0.0.1:5555"
 python3 -m maa_distill update-maa          # 下载 macOS 版 MAA 与同版本 Python 绑定（不再需要克隆 MAA 源码）
@@ -97,6 +97,13 @@ python3 -m maa_distill run <关卡>
 
 BlueStacks 设置：高级 → 打开 Android 调试桥（ADB）；分辨率 16:9（1280×720 或 1920×1080）。
 B 服玩家在 `daily` 清单里把 `client_type` 改成 `"Bilibili"`。
+
+国内网络提示：
+- adb 不必用 Homebrew 安装（国内常下载失败），直接下载 Google 官方包：
+  `curl -L -o pt.zip https://dl.google.com/android/repository/platform-tools-latest-darwin.zip && unzip -q pt.zip`，
+  然后 `config.json` 里 `adb_path` 填 `/Users/<用户名>/platform-tools/adb`。
+- `update-maa` 先通过 MAA 官方接口 api.maa.plus 获取版本（国内可访问），下载时显示进度；
+  GitHub 下载失败时，可在 `config.json` 加 `"github_proxy": "https://<GitHub 加速站>/"` 后重试。
 
 ## 跟上游保持同步
 

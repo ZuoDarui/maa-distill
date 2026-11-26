@@ -1,7 +1,8 @@
 """跟随 MAA 官方更新。
 
 两部分：
-1. 运行时：从 GitHub Releases 下载对应平台的官方发布包解压到 maa/（含内核和资源）。
+1. 运行时：经 MAA 官方版本接口（api.maa.plus，国内可访问）获取最新版本，下载对应平台的官方发布包
+   解压到 maa/。下载顺序：官方镜像 → GitHub → config.json 里的 github_proxy 加速前缀。
 2. 源码参考：对 MaaAssistantArknights 源码仓库执行 git pull（只读参考 + Python 绑定）。
 
 我们的代码只依赖 MAA 的公开接口和资源格式，所以更新 MAA 一般不会破坏本项目。
@@ -24,6 +25,73 @@ from .config import Config
 
 log = logging.getLogger(__name__)
 RELEASE_API = "https://api.github.com/repos/MaaAssistantArknights/MaaAssistantArknights/releases/latest"
+# MAA 官方版本接口（国内可访问；返回内容与 GitHub Release 相同，并带 mirrors 字段）
+MAA_VERSION_APIS = (
+    "https://api.maa.plus/MaaAssistantArknights/api/version/stable.json",
+    "https://api2.maa.plus/MaaAssistantArknights/api/version/stable.json",
+)
+
+
+def _get_json(url: str, cfg: Config, timeout: int = 30) -> dict:
+    req = urllib.request.Request(url, headers={"User-Agent": cfg.user_agent})
+    with urllib.request.urlopen(req, timeout=timeout) as r:
+        return json.loads(r.read())
+
+
+def _release_info(cfg: Config) -> dict:
+    """先问 MAA 官方接口，再退回 GitHub API。"""
+    errors = []
+    for url in MAA_VERSION_APIS:
+        try:
+            return _get_json(url, cfg)["details"]
+        except Exception as e:  # noqa: BLE001 网络错误种类很多，逐个回退即可
+            errors.append(f"{url}: {e}")
+    try:
+        return _get_json(RELEASE_API, cfg)
+    except Exception as e:  # noqa: BLE001
+        errors.append(f"{RELEASE_API}: {e}")
+    raise RuntimeError("获取 MAA 版本信息失败：\n  " + "\n  ".join(errors))
+
+
+def _with_proxy(cfg: Config, url: str) -> str | None:
+    """config.json 中可设置 "github_proxy": "https://<加速站>/"，用于国内加速 GitHub 下载。"""
+    proxy = cfg.extra.get("github_proxy")
+    if proxy and url.startswith(("https://github.com/", "https://raw.githubusercontent.com/")):
+        return proxy.rstrip("/") + "/" + url
+    return None
+
+
+def _download(cfg: Config, urls: list[str], dest: Path) -> str:
+    """依次尝试多个地址下载，打印进度；返回成功的地址。"""
+    import sys
+    import time
+
+    errors = []
+    for url in urls:
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": cfg.user_agent})
+            with urllib.request.urlopen(req, timeout=60) as r, open(dest, "wb") as f:
+                total = int(r.headers.get("Content-Length") or 0)
+                done, t0, last = 0, time.monotonic(), 0.0
+                while chunk := r.read(1 << 20):
+                    f.write(chunk)
+                    done += len(chunk)
+                    now = time.monotonic()
+                    if now - last > 1 or (total and done == total):
+                        last = now
+                        speed = done / max(now - t0, 1e-6) / 1024
+                        pct = f"{done * 100 / total:5.1f}%" if total else "   ?  "
+                        sys.stderr.write(f"\r  {pct}  {done / 1e6:7.1f}/{total / 1e6:.1f} MB  {speed:7.0f} KB/s")
+                        sys.stderr.flush()
+                sys.stderr.write("\n")
+            if total and done != total:
+                raise RuntimeError(f"下载不完整 {done}/{total}")
+            return url
+        except Exception as e:  # noqa: BLE001
+            errors.append(f"{url}: {e}")
+            log.warning("下载失败，换下一个地址：%s（%s）", url, e)
+    raise RuntimeError("所有下载地址都失败：\n  " + "\n  ".join(errors)
+                       + "\n可在 config.json 中设置 github_proxy（GitHub 加速前缀）后重试")
 
 
 def _asset_suffix() -> str:
@@ -43,28 +111,30 @@ def installed_version(cfg: Config) -> str | None:
     return f.read_text().strip() if f.exists() else None
 
 
-def latest_release(cfg: Config) -> tuple[str, str]:
-    req = urllib.request.Request(RELEASE_API, headers={"User-Agent": cfg.user_agent})
-    with urllib.request.urlopen(req, timeout=30) as r:
-        data = json.loads(r.read())
+def latest_release(cfg: Config) -> tuple[str, list[str]]:
+    """返回 (版本号, 按优先级排列的下载地址)：官方镜像 → GitHub → GitHub 加速。"""
+    data = _release_info(cfg)
     suffix = _asset_suffix()
     for a in data["assets"]:
         if a["name"].startswith("MAA-") and a["name"].endswith(suffix):
-            return data["tag_name"], a["browser_download_url"]
+            gh = a["browser_download_url"]
+            urls = [m for m in (a.get("mirrors") or []) if isinstance(m, str)] + [gh]
+            if p := _with_proxy(cfg, gh):
+                urls.append(p)
+            return data["tag_name"], urls
     raise RuntimeError(f"最新版本 {data['tag_name']} 没有 {suffix} 发布包")
 
 
 def update_runtime(cfg: Config, force: bool = False) -> str:
-    tag, url = latest_release(cfg)
+    tag, urls = latest_release(cfg)
     if not force and installed_version(cfg) == tag:
         log.info("MAA 已是最新版本 %s", tag)
         return tag
-    log.info("下载 MAA %s：%s", tag, url)
+    log.info("下载 MAA %s", tag)
     with tempfile.TemporaryDirectory() as tmp:
-        archive = Path(tmp) / url.rsplit("/", 1)[-1]
-        req = urllib.request.Request(url, headers={"User-Agent": cfg.user_agent})
-        with urllib.request.urlopen(req, timeout=600) as r, open(archive, "wb") as f:
-            shutil.copyfileobj(r, f)
+        archive = Path(tmp) / urls[-1].rsplit("/", 1)[-1]
+        used = _download(cfg, urls, archive)
+        log.info("下载完成（%s），解压中…", used)
         staging = Path(tmp) / "x"
         if archive.suffix == ".zip":
             with zipfile.ZipFile(archive) as z:
@@ -96,9 +166,8 @@ def _ensure_python_binding(cfg: Config, tag: str) -> None:
     dst.mkdir(parents=True, exist_ok=True)
     base = f"https://raw.githubusercontent.com/MaaAssistantArknights/MaaAssistantArknights/{tag}/src/Python/asst/"
     for name in BINDING_FILES:
-        req = urllib.request.Request(base + name, headers={"User-Agent": cfg.user_agent})
-        with urllib.request.urlopen(req, timeout=60) as r:
-            (dst / name).write_bytes(r.read())
+        url = base + name
+        _download(cfg, [url] + ([p] if (p := _with_proxy(cfg, url)) else []), dst / name)
     log.info("已下载 MAA Python 绑定 %s 到 %s", tag, dst)
 
 
