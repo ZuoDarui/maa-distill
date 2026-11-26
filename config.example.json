@@ -2,7 +2,7 @@
   "maa_dir": "maa",
   "maa_source_dir": "../MaaAssistantArknights",
   "adb_path": "adb",
-  "adb_address": "127.0.0.1:16384",
+  "adb_address": "127.0.0.1:5555",
   "touch_type": "maatouch",
   "request_interval": 1.0
 }

@@ -90,7 +90,7 @@ class MaaRunner:
         if not any(line.startswith(addr) and line.rstrip().endswith("device") for line in out.splitlines()):
             raise RuntimeError(
                 f"adb 找不到在线设备 {addr}。请确认模拟器已启动、adb 端口正确"
-                f"（远程测试时确认 SSH 反向隧道已建立）。adb devices 输出：\n{out.strip()}")
+                f"。adb devices 输出：\n{out.strip()}")
 
     def __enter__(self):
         self._adb_precheck()
