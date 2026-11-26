@@ -82,6 +82,22 @@ maa_distill/
 tests/          离线单元测试：python -m unittest discover tests
 ```
 
+## 在 Mac + BlueStacks 上运行（推荐）
+
+```bash
+brew install android-platform-tools        # 提供 adb
+git clone git@github.com:ZuoDarui/maa-distill.git && cd maa-distill
+cp config.example.json config.json         # adb_path 填 "adb"，adb_address 填 BlueStacks 显示的 "127.0.0.1:5555"
+python3 -m maa_distill update-maa          # 下载 macOS 版 MAA 与同版本 Python 绑定（不再需要克隆 MAA 源码）
+adb connect 127.0.0.1:5555 && adb devices  # 应显示 device
+python3 -m maa_distill box --scan
+python3 -m maa_distill crawl --stage <关卡> && python3 -m maa_distill plan <关卡>
+python3 -m maa_distill run <关卡>
+```
+
+BlueStacks 设置：高级 → 打开 Android 调试桥（ADB）；分辨率 16:9（1280×720 或 1920×1080）。
+B 服玩家在 `daily` 清单里把 `client_type` 改成 `"Bilibili"`。
+
 ## 远程测试（模拟器在你的 Mac 上，程序在另一台 Linux 机器上）
 
 两台机器在同一 Tailscale 网络时，在 Mac 上开一条 SSH 反向隧道，把模拟器的 adb 端口转发过去：
@@ -92,7 +108,7 @@ ssh -N -R 16384:127.0.0.1:16384 <user>@<linux 机器的 tailscale ip>
 ```
 
 Linux 机器的 `config.json` 里 `adb_address` 填 `127.0.0.1:16384`。注意跨地域延迟会影响按时间轴执行的作业，
-远程方式适合调试流程；正式刷关建议直接在 Mac 上运行本项目。
+实测（2026-11-26，美国机房 ↔ 北京 Mac，RTT 277ms）：单张截图传输约 21 秒，MAA 无法正常工作，\n远程方式只能验证连通性；请直接在 Mac 上运行本项目。
 
 ## 跟上游保持同步
 

@@ -79,8 +79,27 @@ def update_runtime(cfg: Config, force: bool = False) -> str:
             shutil.rmtree(cfg.maa_dir)
         shutil.move(str(root), str(cfg.maa_dir))
     (cfg.maa_dir / ".maa_version").write_text(tag)
+    _ensure_python_binding(cfg, tag)
     _ensure_linux_libatomic(cfg)
     return tag
+
+
+BINDING_FILES = ("__init__.py", "asst.py", "utils.py", "updater.py", "emulator.py", "downloader.py")
+
+
+def _ensure_python_binding(cfg: Config, tag: str) -> None:
+    """macOS 发布包不带 Python 绑定；按同一版本号从 GitHub 只下载 src/Python/asst 下几个文件，
+    避免为此克隆 600MB 的源码仓库。绑定与内核版本严格一致。"""
+    dst = cfg.maa_dir / "Python" / "asst"
+    if (dst / "asst.py").exists():
+        return
+    dst.mkdir(parents=True, exist_ok=True)
+    base = f"https://raw.githubusercontent.com/MaaAssistantArknights/MaaAssistantArknights/{tag}/src/Python/asst/"
+    for name in BINDING_FILES:
+        req = urllib.request.Request(base + name, headers={"User-Agent": cfg.user_agent})
+        with urllib.request.urlopen(req, timeout=60) as r:
+            (dst / name).write_bytes(r.read())
+    log.info("已下载 MAA Python 绑定 %s 到 %s", tag, dst)
 
 
 def _ensure_linux_libatomic(cfg: Config) -> None:

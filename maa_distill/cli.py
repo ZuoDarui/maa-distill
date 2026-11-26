@@ -31,7 +31,8 @@ def cmd_update_maa(args):
     cfg, _ = _ctx(args)
     if not args.skip_runtime:
         print("MAA 运行时版本：", updater.update_runtime(cfg, force=args.force))
-    print("MAA 源码：", updater.update_source(cfg))
+    if args.with_source:
+        print("MAA 源码：", updater.update_source(cfg))
 
 
 def cmd_crawl(args):
@@ -225,7 +226,8 @@ def main(argv=None):
 
     p = sp.add_parser("update-maa", help="下载/更新 MAA 本体和源码")
     p.add_argument("--force", action="store_true")
-    p.add_argument("--skip-runtime", action="store_true", help="只更新源码仓库")
+    p.add_argument("--skip-runtime", action="store_true", help="不更新运行时")
+    p.add_argument("--with-source", action="store_true", help="同时克隆/更新 MAA 源码仓库（约 600MB，仅供阅读参考）")
     p.set_defaults(func=cmd_update_maa)
 
     p = sp.add_parser("crawl", help="增量同步作业站")
