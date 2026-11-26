@@ -32,3 +32,23 @@ class RoguelikeOverrideTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class StageStatsTest(unittest.TestCase):
+    def test_parse_and_report(self):
+        from maa_distill import db
+
+        def ev(what, **d):
+            return ("SubTaskExtraInfo", {"what": what, "details": d})
+
+        events = [ev("StageInfo", name="礼炮小队"), ev("RoguelikeCombatEnd"), ev("StageInfo", name="蓄水池"),
+                  ev("RoguelikeSettlement", game_pass=False),
+                  ev("StageInfo", name="礼炮小队"), ev("StageInfo", name="蓄水池"), ev("StageInfo", name="驯兽小屋"),
+                  ev("RoguelikeSettlement", game_pass=True)]
+        res = roguelike.parse_run_events(events)
+        self.assertEqual(res, [("礼炮小队", False), ("蓄水池", True), ("礼炮小队", False),
+                               ("蓄水池", False), ("驯兽小屋", False)])
+        conn = db.connect(":memory:")
+        roguelike.record_stages(conn, "Phantom", res, "a")
+        top = roguelike.deadly_stages(conn, "Phantom", min_samples=2)[0]
+        self.assertEqual((top["stage"], top["deaths"], top["samples"]), ("蓄水池", 1, 2))

@@ -49,7 +49,8 @@ python -m maa_distill plan level_rune_14-02 --min-risk 10 --max-opers 5
 # 肉鸽：查看你的 box 对某主题策略的覆盖度
 python -m maa_distill roguelike JieGarden
 python -m maa_distill roguelike JieGarden --write-override --bonus 50   # 按练度调招募优先级
-python -m maa_distill roguelike JieGarden --run --bonus 50 --starts 3    # 带调整跑肉鸽并记录
+python -m maa_distill roguelike JieGarden --run --bonus 50 --starts 3    # 带调整跑肉鸽，逐关记录胜负
+python -m maa_distill roguelike JieGarden --report                      # 哪关最容易翻车、哪个 bonus 更好
 ```
 
 ## 示例输出（TL-S-2，示例 box 缺 圣聆初雪）

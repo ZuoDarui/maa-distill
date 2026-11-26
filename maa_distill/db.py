@@ -61,6 +61,14 @@ CREATE TABLE IF NOT EXISTS runs (
 );
 CREATE INDEX IF NOT EXISTS idx_runs_plan ON runs(plan_hash);
 
+CREATE TABLE IF NOT EXISTS roguelike_stages (
+    theme      TEXT NOT NULL,
+    stage      TEXT NOT NULL,     -- 关卡名（MAA StageInfo 回调）
+    died       INTEGER NOT NULL,  -- 1 = 本局在这一关结束且未通关
+    config_tag TEXT,              -- 使用的招募覆盖版本，用于 A/B 对比
+    ran_at     TEXT DEFAULT (datetime('now'))
+);
+
 CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT);
 """
 

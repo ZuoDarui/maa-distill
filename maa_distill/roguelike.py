@@ -83,3 +83,58 @@ def write_override(resource_dir: Path, theme: str, box: Box, incremental_root: P
     f.parent.mkdir(parents=True, exist_ok=True)
     f.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
     return f, notes
+
+
+# ---------------------------------------------------------------------------
+# 逐关战绩：哪一关最容易翻车
+#
+# 已从 MAA 源码确认（Task/Roguelike/RoguelikeBattleTaskPlugin.cpp、RoguelikeSettlementTaskPlugin.cpp）：
+# - 每场战斗开始前回调 SubTaskExtraInfo{what: "StageInfo", details: {name}}
+# - 每局结算回调 SubTaskExtraInfo{what: "RoguelikeSettlement", details: {game_pass}}
+# 因此：一局里 game_pass=false 时，最后一个 StageInfo 就是翻车关，之前的都算通过。
+# ---------------------------------------------------------------------------
+
+def parse_run_events(events: list[tuple[str, dict]]) -> list[tuple[str, bool]]:
+    """把一次 Roguelike 任务的回调序列解析成 [(关卡名, 是否死在这关)]，可能跨多局。"""
+    out: list[tuple[str, bool]] = []
+    current: list[str] = []
+    for name, d in events:
+        if name != "SubTaskExtraInfo":
+            continue
+        what = d.get("what")
+        if what == "StageInfo":
+            stage = (d.get("details") or {}).get("name")
+            if stage:
+                current.append(stage)
+        elif what == "RoguelikeSettlement":
+            passed = bool((d.get("details") or {}).get("game_pass"))
+            for i, st in enumerate(current):
+                out.append((st, (not passed) and i == len(current) - 1))
+            current = []
+    # 任务被中断、没有结算：只记为通过的关，不判死亡
+    out += [(st, False) for st in current]
+    return out
+
+
+def record_stages(conn, theme: str, results: list[tuple[str, bool]], config_tag: str = "") -> None:
+    conn.executemany("INSERT INTO roguelike_stages(theme, stage, died, config_tag) VALUES (?,?,?,?)",
+                     [(theme, st, int(died), config_tag) for st, died in results])
+    conn.commit()
+
+
+def deadly_stages(conn, theme: str, min_samples: int = 3) -> list[dict]:
+    """按翻车率排序。翻车率高的关卡就是下一步要调整 autopilot 部署的对象。"""
+    rows = conn.execute(
+        """SELECT stage, COUNT(*) AS n, SUM(died) AS deaths FROM roguelike_stages
+           WHERE theme=? GROUP BY stage HAVING n >= ? ORDER BY 1.0*SUM(died)/COUNT(*) DESC, n DESC""",
+        (theme, min_samples)).fetchall()
+    return [{"stage": r["stage"], "samples": r["n"], "deaths": r["deaths"],
+             "death_rate": r["deaths"] / r["n"]} for r in rows]
+
+
+def compare_configs(conn, theme: str) -> list[dict]:
+    """不同招募覆盖版本（--bonus）的平均翻车率，越低越好。"""
+    rows = conn.execute(
+        """SELECT config_tag, COUNT(*) AS n, SUM(died) AS deaths FROM roguelike_stages
+           WHERE theme=? GROUP BY config_tag ORDER BY 1.0*SUM(died)/COUNT(*)""", (theme,)).fetchall()
+    return [{"config": r["config_tag"] or "原版", "stages": r["n"], "deaths": r["deaths"]} for r in rows]
