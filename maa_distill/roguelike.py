@@ -41,3 +41,45 @@ def coverage(resource_dir: Path, theme: str, box: Box) -> dict:
         "key_missing": key_missing,
         "empty_groups": [g for g, v in groups.items() if not v],
     }
+
+
+# ---------------------------------------------------------------------------
+# 招募优先级覆盖（增量资源）
+#
+# 已从 MAA 源码确认（Config/ResourceLoader.h、Roguelike/RoguelikeRecruitConfig.cpp）：
+# - Asst.load(path, incremental_path=P) 会读取 P/resource/... 下存在的文件，不存在的文件跳过；
+# - RoguelikeRecruitConfig::parse 会先 clear(theme) 再整份载入，
+#   所以覆盖文件必须是"完整的 recruitment.json"，不能只写改动部分。
+# 因此这里的做法是：复制 MAA 原版 → 按你的练度微调 recruit_priority → 写到 P。
+# MAA 更新后重新生成一次即可，不会落后于上游策略。
+# ---------------------------------------------------------------------------
+
+def build_override(resource_dir: Path, theme: str, box: Box, bonus: int = 50) -> tuple[dict, list[str]]:
+    """返回 (新的 recruitment.json, 改动说明)。
+
+    规则（保守）：同一职能组里，你拥有且精二的干员 recruit_priority +bonus，
+    精一 +bonus/2；不会改动组的顺序、开局干员和阵容完成条件。
+    """
+    import copy
+
+    data = json.loads((resource_dir / "roguelike" / theme / "recruitment.json").read_text(encoding="utf-8"))
+    out = copy.deepcopy(data)
+    notes: list[str] = []
+    for grp in out["priority"]:
+        for o in grp["opers"]:
+            own = box.get(o["name"])
+            if own is None or "recruit_priority" not in o:
+                continue
+            add = bonus if own.elite >= 2 else bonus // 2 if own.elite == 1 else 0
+            if add:
+                o["recruit_priority"] += add
+                notes.append(f"[{grp['name']}] {o['name']} 招募优先级 +{add}")
+    return out, notes
+
+
+def write_override(resource_dir: Path, theme: str, box: Box, incremental_root: Path, bonus: int = 50) -> tuple[Path, list[str]]:
+    data, notes = build_override(resource_dir, theme, box, bonus)
+    f = incremental_root / "resource" / "roguelike" / theme / "recruitment.json"
+    f.parent.mkdir(parents=True, exist_ok=True)
+    f.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    return f, notes

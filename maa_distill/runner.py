@@ -96,6 +96,10 @@ class MaaRunner:
                 return d["details"]
         raise RuntimeError("没有收到 OperBox 识别结果")
 
+    def run_task(self, task: str, params: dict, timeout: float = 4 * 3600) -> tuple[bool, list[tuple[str, dict]]]:
+        """执行任意 MAA 任务（Roguelike / Fight / Infrast ...），即 MAA 的全部功能。"""
+        return self._run(task, params, timeout)
+
     def run_copilot(self, plan_file: Path, formation: bool = True, kind: str = "Copilot") -> tuple[bool, str]:
         """执行一份作业。kind 可为 Copilot（普通/活动/危机合约）、SSSCopilot（保全派驻）、ParadoxCopilot（悖论模拟）。"""
         params = {"filename": str(Path(plan_file).resolve())}

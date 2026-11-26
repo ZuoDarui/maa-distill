@@ -150,10 +150,29 @@ def cmd_roguelike(args):
     res = cfg.maa_dir / "resource"
     if not res.exists():
         res = cfg.maa_source_dir / "resource"
-    c = roguelike.coverage(res, args.theme, boxmod.load(conn))
+    b = boxmod.load(conn)
+    c = roguelike.coverage(res, args.theme, b)
     print(f"{roguelike.THEMES.get(args.theme, args.theme)}：拥有核心干员 {len(c['key_owned'])}，缺 {len(c['key_missing'])}")
     print("缺少的核心干员（按招募优先级）：", ", ".join(n for n, _ in c["key_missing"][:20]))
     print("完全空缺的职能组：", ", ".join(c["empty_groups"][:20]))
+    if not (args.write_override or args.run):
+        return
+    inc_root = cfg.db_path.parent / "incremental"
+    f, notes = roguelike.write_override(res, args.theme, b, inc_root, args.bonus)
+    print(f"已生成增量资源 {f}（{len(notes)} 处调整）")
+    for n in notes[:15]:
+        print("  ", n)
+    if args.run:
+        import hashlib
+        from .runner import MaaRunner
+
+        tag = hashlib.sha1(f.read_bytes()).hexdigest()[:16]
+        with MaaRunner(cfg, incremental_resource=inc_root) as r:
+            params = {"theme": args.theme, "mode": args.mode, "starts_count": args.starts}
+            ok, events = r.run_task("Roguelike", params)
+        feedback.record_run(conn, f"roguelike:{args.theme}:{tag}", f"roguelike:{args.theme}", ok,
+                            detail=json.dumps([e for e in events if e[0] == "TaskChainError"][-3:], ensure_ascii=False))
+        print("完成" if ok else "失败/中断", "（已记录，可对比不同 --bonus 的效果）")
 
 
 def main(argv=None):
@@ -206,6 +225,11 @@ def main(argv=None):
 
     p = sp.add_parser("roguelike", help="肉鸽策略覆盖度分析")
     p.add_argument("theme", choices=list(roguelike.THEMES))
+    p.add_argument("--write-override", action="store_true", help="按你的练度生成招募优先级增量资源")
+    p.add_argument("--bonus", type=int, default=50, help="你精二干员的招募优先级加成")
+    p.add_argument("--run", action="store_true", help="带增量资源用 MAA 跑肉鸽并记录结果")
+    p.add_argument("--mode", type=int, default=0, help="MAA 肉鸽模式：0 刷分，1 刷源石锭 ...")
+    p.add_argument("--starts", type=int, default=1, help="开始探索次数")
     p.set_defaults(func=cmd_roguelike)
 
     args = ap.parse_args(argv)
