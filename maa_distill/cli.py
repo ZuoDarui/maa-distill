@@ -145,6 +145,40 @@ def cmd_record(args):
     print("已记录")
 
 
+# MAA 全部任务类型（与 MaaCore Assistant::append_task 一致，见 docs/zh-cn/protocol/integration.md）
+MAA_TASKS = ["StartUp", "CloseDown", "Fight", "Recruit", "Infrast", "Mall", "Award", "Roguelike",
+             "Copilot", "SSSCopilot", "ParadoxCopilot", "Reclamation", "StrongholdProtocol",
+             "OperProgress", "Depot", "OperBox", "SwitchTheme", "Custom", "SingleStep", "VideoRecognition"]
+
+
+def cmd_task(args):
+    """直接执行任意 MAA 任务，参数为 MAA 原生 JSON（文档：integration.md）。"""
+    cfg, _ = _ctx(args)
+    from .runner import MaaRunner
+
+    params = json.loads(args.params) if args.params else {}
+    with MaaRunner(cfg) as r:
+        ok, events = r.run_task(args.type, params)
+    print("完成" if ok else "失败", f"（{len(events)} 条回调）")
+
+
+def cmd_daily(args):
+    """按 JSON 清单依次执行 MAA 日常任务，格式：[{"type": "Fight", "params": {...}}, ...]"""
+    cfg, _ = _ctx(args)
+    from .runner import MaaRunner
+
+    tasks = json.loads(Path(args.file).read_text(encoding="utf-8"))
+    for t in tasks:
+        if t["type"] not in MAA_TASKS:
+            sys.exit(f"未知任务类型 {t['type']}，可选：{', '.join(MAA_TASKS)}")
+    with MaaRunner(cfg) as r:
+        for t in tasks:
+            if not t.get("enable", True):
+                continue
+            ok, _ = r.run_task(t["type"], t.get("params", {}))
+            print(f"{t['type']:<16} {'完成' if ok else '失败'}")
+
+
 def cmd_roguelike(args):
     cfg, conn = _ctx(args)
     res = cfg.maa_dir / "resource"
@@ -231,6 +265,15 @@ def main(argv=None):
     p.add_argument("--mode", type=int, default=0, help="MAA 肉鸽模式：0 刷分，1 刷源石锭 ...")
     p.add_argument("--starts", type=int, default=1, help="开始探索次数")
     p.set_defaults(func=cmd_roguelike)
+
+    p = sp.add_parser("task", help="执行任意 MAA 任务（MAA 全部功能）")
+    p.add_argument("type", choices=MAA_TASKS)
+    p.add_argument("params", nargs="?", help='MAA 原生 JSON 参数，如 \'{"stage":"1-7","times":3}\'')
+    p.set_defaults(func=cmd_task)
+
+    p = sp.add_parser("daily", help="按清单执行 MAA 日常（启动/刷理智/基建/公招/商店/奖励…）")
+    p.add_argument("file", nargs="?", default=str(Path(__file__).resolve().parent.parent / "daily.example.json"))
+    p.set_defaults(func=cmd_daily)
 
     args = ap.parse_args(argv)
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO, format="%(levelname)s %(message)s")

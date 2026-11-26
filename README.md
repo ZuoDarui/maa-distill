@@ -38,6 +38,11 @@ python -m maa_distill run <保全关卡> --kind SSSCopilot
 # 用 MAA 图形界面跑完，可以手动记录结果
 python -m maa_distill record data/plans/xxx.json win
 
+# MAA 全部原生功能：日常一键执行 / 任意任务直通（参数格式同 MAA 文档 integration.md）
+python -m maa_distill daily                      # 默认清单 daily.example.json：启动→刷理智→公招→基建→商店→奖励
+python -m maa_distill task Fight '{"stage":"1-7","times":3}'
+python -m maa_distill task Reclamation '{"theme":"Tales"}'
+
 # 危机合约：只要风险 ≥10 级、≤5 人的作业
 python -m maa_distill plan level_rune_14-02 --min-risk 10 --max-opers 5
 
