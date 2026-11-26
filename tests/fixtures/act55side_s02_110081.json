@@ -1,0 +1,208 @@
+{
+ "version": 3,
+ "stage_name": "act55side_s02",
+ "difficulty": 3,
+ "minimum_required": "v6.0.0",
+ "doc": {
+  "title": "时间啊，向前！ - TL-S-2 - 霜解",
+  "details": "原作者：萧然Q json作者：萨拉托加\n\n作业交流群 https://qm.qq.com/q/tzmJTomYDK ，可蹲作业，有问题进群找我，作业站消息没提醒看不到\n\n作业练度培养查询网站https://annangela.github.io/maa-job-training-list\n【【时间啊，向前！】TL-S-1至TL-S-4突袭 摆完挂机 简单好抄】 https://www.bilibili.com/video/BV1HTsn6xE3x/?share_source=copy_web&vd_source=3fd5040fe25f6a00e19e6072bcccfa4e"
+ },
+ "opers": [
+  {
+   "name": "圣聆初雪",
+   "skill": 2,
+   "requirements": {
+    "elite": 2,
+    "level": 60,
+    "skill_level": 10,
+    "module": -1,
+    "potentiality": 1
+   }
+  },
+  {
+   "name": "遥",
+   "skill": 2,
+   "skill_usage": 0,
+   "requirements": {
+    "elite": 2,
+    "level": 60,
+    "skill_level": 10,
+    "module": -1,
+    "potentiality": 1
+   }
+  },
+  {
+   "name": "乌尔比安",
+   "skill": 2,
+   "requirements": {
+    "elite": 2,
+    "level": 60,
+    "skill_level": 10,
+    "module": -1,
+    "potentiality": 1
+   }
+  },
+  {
+   "name": "歌蕾蒂娅",
+   "skill": 1,
+   "requirements": {
+    "elite": 2,
+    "level": 60,
+    "skill_level": 10,
+    "module": 1,
+    "potentiality": 1
+   }
+  },
+  {
+   "name": "凛御银灰",
+   "skill": 3,
+   "skill_usage": 1,
+   "requirements": {
+    "elite": 2,
+    "level": 60,
+    "skill_level": 10,
+    "module": -1,
+    "potentiality": 1
+   }
+  },
+  {
+   "name": "德克萨斯",
+   "skill": 1,
+   "requirements": {
+    "elite": 2,
+    "level": 40,
+    "skill_level": 7,
+    "module": -1,
+    "potentiality": 1
+   }
+  }
+ ],
+ "groups": [
+  {
+   "name": "奶盾",
+   "opers": [
+    {
+     "name": "黍",
+     "skill": 1,
+     "requirements": {
+      "elite": 2,
+      "level": 60,
+      "skill_level": 10,
+      "module": -1,
+      "potentiality": 1
+     }
+    },
+    {
+     "name": "塞雷娅",
+     "skill": 1,
+     "requirements": {
+      "elite": 2,
+      "level": 60,
+      "skill_level": 10,
+      "module": -1,
+      "potentiality": 1
+     }
+    }
+   ]
+  }
+ ],
+ "actions": [
+  {
+   "name": "遥",
+   "type": "Deploy",
+   "location": [
+    6,
+    4
+   ],
+   "direction": "Left"
+  },
+  {
+   "costs": 16,
+   "name": "遥",
+   "type": "Skill"
+  },
+  {
+   "name": "凛御银灰",
+   "type": "Deploy",
+   "location": [
+    5,
+    5
+   ],
+   "direction": "Right"
+  },
+  {
+   "name": "遥",
+   "type": "SkillUsage",
+   "skill_usage": 1
+  },
+  {
+   "name": "奶盾",
+   "type": "Deploy",
+   "location": [
+    5,
+    6
+   ],
+   "direction": "Right"
+  },
+  {
+   "name": "圣聆初雪",
+   "type": "Deploy",
+   "location": [
+    6,
+    5
+   ],
+   "direction": "Right"
+  },
+  {
+   "name": "自爆榴弹",
+   "type": "Deploy",
+   "location": [
+    4,
+    5
+   ],
+   "direction": "None"
+  },
+  {
+   "name": "自爆榴弹",
+   "type": "Deploy",
+   "location": [
+    7,
+    2
+   ],
+   "direction": "None"
+  },
+  {
+   "name": "自爆榴弹",
+   "type": "Deploy",
+   "location": [
+    7,
+    2
+   ],
+   "direction": "None"
+  },
+  {
+   "name": "歌蕾蒂娅",
+   "type": "Deploy",
+   "location": [
+    6,
+    2
+   ],
+   "direction": "Up"
+  },
+  {
+   "name": "乌尔比安",
+   "type": "Deploy",
+   "location": [
+    7,
+    3
+   ],
+   "direction": "Left"
+  },
+  {
+   "type": "SpeedUp"
+  },
+  {
+   "type": "SkillDaemon"
+  }
+ ]
+}

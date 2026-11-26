@@ -1,0 +1,16 @@
+[project]
+name = "maa-distill"
+version = "0.1.0"
+description = "在 MAA 之上蒸馏作业站作战记录，生成并优化适配个人 box 的作战方案"
+requires-python = ">=3.10"
+dependencies = []  # 只用标准库，方便入门
+
+[project.scripts]
+maa-distill = "maa_distill.cli:main"
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["maa_distill"]

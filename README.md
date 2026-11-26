@@ -1,0 +1,80 @@
+# maa-distill
+
+在 [MAA](https://github.com/MaaAssistantArknights/MaaAssistantArknights) 之上的 Python 层。功能：
+
+- 蒸馏作业站的作战记录
+- 按**你自己的 box** 改编出可用的作战方案
+- 用 MAA 实跑，按胜负不断重新排序优化
+
+MAA 本体不做任何修改，用 `update-maa` 即可跟随官方更新。
+
+完整设计和路线图见 [docs/PLAN.md](docs/PLAN.md)。
+
+## 快速开始
+
+```bash
+# 0. 需要 Python ≥ 3.10，无第三方依赖
+git clone <本仓库> && cd maa-distill
+cp config.example.json config.json   # 填 adb 地址（MuMu 一般为 127.0.0.1:16384）
+
+# 1. 获取 MAA（官方发布包 + 源码中的 Python 绑定）
+python -m maa_distill update-maa
+
+# 2. 同步作业站：关卡表 + 某关的作业（每关默认拉点赞前 5 份详情）
+python -m maa_distill crawl --stage TL-S-2
+
+# 3. 导入你的 box
+python -m maa_distill box --scan                 # 用 MAA 在模拟器里识别
+python -m maa_distill box --file mybox.json      # 或手写 JSON（格式见 tests/fixtures/sample_box.json）
+
+# 4. 看这关大家怎么打，并生成适配你的方案
+python -m maa_distill stats TL-S-2
+python -m maa_distill plan TL-S-2                # 生成的作业 JSON 在 data/plans/，也可以导入 MAA 图形界面
+
+# 5. 实跑：失败自动换下一个方案，直到成功
+python -m maa_distill run TL-S-2 --max-attempts 5
+python -m maa_distill run <保全关卡> --kind SSSCopilot
+
+# 用 MAA 图形界面跑完，可以手动记录结果
+python -m maa_distill record data/plans/xxx.json win
+
+# 肉鸽：查看你的 box 对某主题策略的覆盖度
+python -m maa_distill roguelike JieGarden
+```
+
+## 示例输出（TL-S-2，示例 box 缺 圣聆初雪）
+
+```text
+#1 分数 0.498 | 作业 110081 时间啊，向前！ - TL-S-2 - 霜解
+   圣聆初雪 → 伊芙利特
+   站内先验 1.00，实跑 0 胜 0 负，替补系数 0.50
+```
+
+记录两次失败后重新运行 `plan`，该组合降到 0.332，其他替补组合自动排到前面。
+
+## 目录
+
+```text
+maa_distill/
+  crawler.py    作业站增量爬虫（限速、按需拉详情）
+  db.py         SQLite：copilots / levels / box / runs
+  schema.py     作业 JSON 数据模型
+  gamedata.py   干员职业数据（读 MAA 的 battle_data.json）、关卡别名
+  box.py        干员 box（MAA OperBox 识别或手写）
+  planner.py    蒸馏统计、替补改编、方案排序
+  scoring.py    Wilson 下界 + 贝叶斯后验
+  feedback.py   实跑记录
+  runner.py     调用 MAA Python 绑定执行任务
+  updater.py    跟随 MAA 官方更新
+  roguelike.py  肉鸽策略覆盖度分析
+tests/          离线单元测试：python -m unittest discover tests
+```
+
+## 跟上游保持同步
+
+- MAA 本体：`python -m maa_distill update-maa`
+- 本仓库：日常 `git add -A && git commit -m "..." && git push`
+
+## 声明
+
+自动化操作存在违反游戏用户协议的风险，请自行承担。请合理控制对作业站的请求频率。
