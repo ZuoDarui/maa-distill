@@ -79,6 +79,18 @@ class CopilotResult:
         return cls(ok and started, started, json.dumps(errors[-3:], ensure_ascii=False), hint)
 
 
+def stage_has_nav_task(maa_dir: Path, stage_code: str) -> bool:
+    """MAA 资源里是否有该关卡的导航任务链（如 resource/tasks/Stages/TL.json 中的 "TL-8"）。"""
+    stages_dir = Path(maa_dir) / "resource" / "tasks" / "Stages"
+    for f in stages_dir.glob("*.json"):
+        try:
+            if stage_code in json.loads(f.read_text(encoding="utf-8")):
+                return True
+        except (OSError, json.JSONDecodeError):
+            continue
+    return False
+
+
 class MaaRunner:
     """一个 MAA 实例。用法：
 
@@ -166,10 +178,30 @@ class MaaRunner:
         """执行任意 MAA 任务（Roguelike / Fight / Infrast ...），即 MAA 的全部功能。"""
         return self._run(task, params, timeout)
 
-    def run_copilot(self, plan_file: Path, formation: bool = True, kind: str = "Copilot") -> CopilotResult:
-        """执行一份作业。kind 可为 Copilot（普通/活动/危机合约）、SSSCopilot（保全派驻）、ParadoxCopilot（悖论模拟）。"""
-        params = {"filename": str(Path(plan_file).resolve())}
-        if kind == "Copilot":
-            params.update({"formation": formation, "use_sanity_potion": False})
+    def run_copilot(self, plan_file: Path, formation: bool = True, kind: str = "Copilot",
+                    nav_name: str | None = None, is_raid: bool = False) -> CopilotResult:
+        """执行一份作业。kind 可为 Copilot（普通/活动/危机合约）、SSSCopilot（保全派驻）、ParadoxCopilot（悖论模拟）。
+
+        nav_name（如 "TL-8"）：改用 MAA 多作业模式（copilot_list），由 MAA 在关卡所在地图上自动找到并进入关卡，
+        不需要事先停在编队界面（MaaCore Task/Miscellaneous/MultiCopilotTaskPlugin.cpp::navigate_to_stage）。
+        """
+        path = str(Path(plan_file).resolve())
+        if kind == "Copilot" and nav_name:
+            params = {"copilot_list": [{"filename": path, "nav_name_override": nav_name, "is_raid": is_raid}],
+                      "formation": formation, "use_sanity_potion": False}
+        else:
+            params = {"filename": path}
+            if kind == "Copilot":
+                params.update({"formation": formation, "use_sanity_potion": False})
         ok, events = self._run(kind, params)
         return CopilotResult.from_events(ok, events)
+
+    def navigate_to_event_map(self, stage_code: str) -> bool:
+        """从任意界面回到主界面 → 终端 → 打开活动 → 点到该关卡。
+
+        只对 MAA 资源 resource/tasks/Stages/*.json 中定义了导航链的关卡有效（当期活动的可刷关，如 TL-8）。
+        """
+        if not stage_has_nav_task(self.cfg.maa_dir, stage_code):
+            return False
+        ok, _ = self._run("Custom", {"task_names": ["StageBegin", stage_code]}, timeout=300)
+        return ok

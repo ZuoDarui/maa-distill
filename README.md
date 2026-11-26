@@ -93,7 +93,11 @@ adb connect 127.0.0.1:5555 && adb devices  # 应显示 device
 python3 -m maa_distill box --scan
 python3 -m maa_distill crawl --stage <关卡> && python3 -m maa_distill plan <关卡>
 python3 -m maa_distill run <关卡>
+python3 -m maa_distill run TL-8 --nav --max-attempts 3
 ```
+
+`--nav`：当期活动可刷关（MAA 资源 `resource/tasks/Stages/*.json` 有导航链的，如 TL-8）可从任意界面开始，
+由 MAA 自动进入关卡；其他关卡请先停在关卡所在地图上。不带 `--nav` 时需停在带「开始行动」按钮的编队界面。
 
 BlueStacks 设置：高级 → 打开 Android 调试桥（ADB）；分辨率 16:9（1280×720 或 1920×1080）。
 B 服玩家在 `daily` 清单里把 `client_type` 改成 `"Bilibili"`。

@@ -138,7 +138,18 @@ def cmd_run(args):
     from .runner import MaaRunner
 
     successes = 0
+    nav = None
+    if args.nav:
+        nav = args.stage
+        if "#" in nav or nav.startswith(("act", "main_", "level_")):
+            sys.exit("--nav 需要关卡代号（如 TL-8、1-7），不能用 stage_id")
     with MaaRunner(cfg) as r:
+        if nav:
+            if r.navigate_to_event_map(nav):
+                print(f"已自动导航到 {nav}")
+            else:
+                print(f"MAA 资源里没有 {nav} 的「主界面→关卡」导航链（只支持当期活动可刷关）；"
+                      f"请手动停在 {nav} 所在的关卡地图上，之后由 MAA 在地图上找关卡")
         for attempt in range(args.max_attempts):
             sid, plans = _plans_autofetch(cfg, conn, args.stage, args)  # 每次重新排序：上次失败的会掉下去
             if not plans:
@@ -147,7 +158,7 @@ def cmd_run(args):
             p = plans[0]
             f = _write_plan(cfg, args.stage, p)
             print(f"[{attempt + 1}] 执行 {f.name}（分数 {p.score:.3f}）")
-            res = r.run_copilot(f, kind=args.kind)
+            res = r.run_copilot(f, kind=args.kind, nav_name=nav, is_raid=args.raid)
             if not res.started:
                 # 没开打的失败不是作业的错，不记录，也不换下一个方案（换了也一样失败）
                 print(f"   未进入战斗，本次不计入胜负：{res.hint}")
@@ -298,6 +309,9 @@ def main(argv=None):
     p.add_argument("--min-risk", type=int, help="危机合约：只要风险等级 ≥ N 的作业")
     p.add_argument("--max-opers", type=int, help="只要编队人数 ≤ N 的作业（如危机合约少人挑战）")
     p.add_argument("--kind", default="Copilot", choices=["Copilot", "SSSCopilot", "ParadoxCopilot"])
+    p.add_argument("--nav", action="store_true",
+                   help="由 MAA 自动导航到关卡（当期活动可从任意界面开始；其他关卡需停在关卡地图上）")
+    p.add_argument("--raid", action="store_true", help="配合 --nav：切换突袭模式")
     p.add_argument("--until-success", type=int, default=1)
     p.add_argument("--max-attempts", type=int, default=5)
     p.set_defaults(func=cmd_run)

@@ -39,7 +39,8 @@ python3 -m unittest discover tests
 已在真机验证：`update-maa`（macOS v6.23.2）、`box --scan`（277 名干员）、`plan 1-7`、`run 1-7`（作业 22515 胜，记录生效，分数 0.987→0.989）。
 
 下一步：
-1. `git pull` 后 `plan TL-8`（会自动补拉其余作业详情，期望出现「无需替补」方案），用户同意后 `run TL-8 --max-attempts 3`。
+1. `git pull` 后 `plan TL-8`（会自动补拉其余作业详情，期望出现「无需替补」方案），用户同意后 `run TL-8 --nav --max-attempts 3`。
+   `--nav`（未实机验证）：先用 MAA Custom 任务 `StageBegin`→`TL-8` 从任意界面导航到活动关卡，再用 copilot_list 多作业模式由 MAA 在地图上进关、编队、开打；失败重试时无需人工回到编队界面。若导航失败，退回手动停在编队界面、不带 `--nav` 运行。
 2. 危机合约：`plan <level_rune_xx-xx> --min-risk N`，实跑验证。
 3. 肉鸽：`roguelike <主题> --run` 积累数据 → `--report` 找翻车关 → 实现「按关卡调整 autopilot 部署」（PLAN.md 阶段 4，尚未编写）。
 4. `task` / `daily` 尚未实机验证（B 服 `client_type` 用 `Bilibili`）。
